@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StartPracticingButton } from "@/components/start-practicing-button";
 
 export const metadata: Metadata = {
-  title: "Pitch Your Build",
+  title: { absolute: "Shoot Your Shot" },
   description:
     "Practice your pitch against an AI buyer who pushes back, then get coached.",
 };
@@ -31,7 +31,7 @@ export default function HomePage() {
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pt-12 pb-8 sm:px-6 sm:pt-20">
       <p className="text-sm font-medium tracking-wide text-primary">Voice practice for builders</p>
       <h1 className="mt-4 max-w-3xl font-heading text-5xl leading-[1.05] tracking-tight text-balance sm:text-7xl">
-        Pitch Your Build
+        Shoot Your Shot
       </h1>
       <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
         Practice your pitch against an AI buyer who pushes back, then get coached.

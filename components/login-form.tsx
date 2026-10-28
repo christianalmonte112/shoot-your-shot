@@ -74,7 +74,7 @@ export function LoginForm() {
       <div className="max-w-md rounded-xl bg-card p-6 ring-1 ring-foreground/10">
         <h2 className="font-heading text-2xl tracking-tight">Check your email</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          We sent a sign-in link to {email.trim()}. Open it on this device and you&apos;ll land back in the practice room.
+          We sent a sign-in link to {email.trim()}. Open it on this device and you&apos;ll land back in Shoot Your Shot.
         </p>
       </div>
     );

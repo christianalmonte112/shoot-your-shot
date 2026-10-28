@@ -1,4 +1,4 @@
--- Pitch Your Build: accounts, briefs, calls, and the free-call limit.
+-- Shoot Your Shot: accounts, briefs, calls, and the free-call limit.
 --
 -- Run this once in the Supabase SQL editor, or with the Supabase CLI
 -- (`supabase db push`). After it runs, enable Email and Google under

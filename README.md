@@ -1,4 +1,4 @@
-# Pitch Your Build
+# Shoot Your Shot
 
 Practice a product pitch out loud against an AI buyer who pushes back, then read three coaching notes from the same call.
 

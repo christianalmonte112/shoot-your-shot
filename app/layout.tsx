@@ -22,8 +22,8 @@ const instrumentSerif = Instrument_Serif({
 
 export const metadata: Metadata = {
   title: {
-    default: "Pitch Your Build",
-    template: "%s · Pitch Your Build",
+    default: "Shoot Your Shot",
+    template: "%s · Shoot Your Shot",
   },
   description:
     "Practice your pitch against an AI buyer who pushes back, then get coached.",

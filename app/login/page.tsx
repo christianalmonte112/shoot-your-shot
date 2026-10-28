@@ -11,7 +11,7 @@ import { missingSupabaseEnv, supabaseIsConfigured } from "@/lib/supabase/env";
 
 export const metadata: Metadata = {
   title: "Log in",
-  description: "Sign in with an email link or Google to practice your pitch.",
+  description: "Sign in with an email link or Google to use Shoot Your Shot.",
 };
 
 export default function LoginPage({

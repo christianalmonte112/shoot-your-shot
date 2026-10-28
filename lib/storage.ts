@@ -10,8 +10,8 @@ import {
  * v1 has no account and no database. The brief and the last call live in
  * this browser under these keys. Clearing site data clears the practice.
  */
-const BRIEF_KEY = "pitch-your-build:brief";
-const CALL_KEY = "pitch-your-build:call";
+const BRIEF_KEY = "shoot-your-shot:brief";
+const CALL_KEY = "shoot-your-shot:call";
 
 type Envelope<T> = { v: 1; data: T };
 

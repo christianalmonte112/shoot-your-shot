@@ -26,7 +26,7 @@ export function SiteHeader({ email }: { email: string | null }) {
     <header className="sticky top-0 z-20 border-b border-border/80 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
         <Link href="/" className="font-heading text-lg tracking-tight text-foreground">
-          Pitch Your Build
+          Shoot Your Shot
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           <nav aria-label="Practice" className="flex items-center gap-1">
