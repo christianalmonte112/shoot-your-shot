@@ -70,7 +70,11 @@ export function ResultsView() {
               see the three cards before Vapi is connected.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button render={<Link href="/call" />} className="h-11 rounded-full px-5">
+              <Button
+                nativeButton={false}
+                render={<Link href="/call" />}
+                className="h-11 rounded-full px-5"
+              >
                 Go to the call
               </Button>
               <Button
@@ -137,10 +141,19 @@ export function ResultsView() {
 
       {turns.length > 0 ? (
         <div className="flex flex-col gap-3 sm:flex-row">
-          <Button render={<Link href="/call" />} className="h-11 rounded-full px-5">
+          <Button
+            nativeButton={false}
+            render={<Link href="/call" />}
+            className="h-11 rounded-full px-5"
+          >
             Practice again
           </Button>
-          <Button render={<Link href="/brief" />} variant="outline" className="h-11 rounded-full px-5">
+          <Button
+            nativeButton={false}
+            render={<Link href="/brief" />}
+            variant="outline"
+            className="h-11 rounded-full px-5"
+          >
             Edit the brief
           </Button>
         </div>

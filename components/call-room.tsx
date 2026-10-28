@@ -9,7 +9,14 @@ import { TranscriptLog } from "@/components/transcript-log";
 import { Button } from "@/components/ui/button";
 import { briefIsReady } from "@/lib/brief";
 import { getPersona } from "@/lib/personas";
-import { getBriefServerSnapshot, getBriefSnapshot, subscribeBrief } from "@/lib/storage";
+import {
+  getBriefServerSnapshot,
+  getBriefSnapshot,
+  getCallServerSnapshot,
+  getCallSnapshot,
+  subscribeBrief,
+  subscribeCall,
+} from "@/lib/storage";
 import type { CallStatus } from "@/lib/types";
 import { useVapiCall } from "@/lib/use-vapi-call";
 import { vapiIsConfigured } from "@/lib/vapi-config";
@@ -24,6 +31,7 @@ const STATUS_LABEL: Record<CallStatus, string> = {
 
 export function CallRoom() {
   const brief = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
+  const savedCall = useSyncExternalStore(subscribeCall, getCallSnapshot, getCallServerSnapshot);
   const {
     status,
     turns,
@@ -40,6 +48,8 @@ export function CallRoom() {
   const persona = getPersona(brief.persona);
   const inCall = status === "connecting" || status === "live";
   const canStart = configured && ready && clientReady && !inCall;
+  // Live lines win. Before a call starts, show the transcript saved last time.
+  const visibleTurns = turns.length > 0 ? turns : inCall ? [] : (savedCall?.turns ?? []);
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.2fr)]">
@@ -105,7 +115,7 @@ export function CallRoom() {
               <Mic />
               {!clientReady
                 ? "Preparing the call…"
-                : turns.length > 0
+                : visibleTurns.length > 0
                   ? "Start a new call"
                   : "Start call"}
             </Button>
@@ -117,8 +127,9 @@ export function CallRoom() {
             </p>
           ) : null}
 
-          {status === "ended" || (status === "idle" && turns.length > 0) ? (
+          {status === "ended" || (status === "idle" && visibleTurns.length > 0) ? (
             <Button
+              nativeButton={false}
               render={<Link href="/results" />}
               variant="outline"
               className="h-11 rounded-full"
@@ -133,7 +144,7 @@ export function CallRoom() {
             {status === "live" || status === "connecting" ? "Live transcript" : "Transcript"}
           </h2>
           <TranscriptLog
-            turns={turns}
+            turns={visibleTurns}
             buyerName={persona.buyerName}
             empty={
               configured

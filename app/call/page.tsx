@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/page-shell";
-import { CallScreen } from "@/components/screens";
+import { CallRoom } from "@/components/call-room";
 
 export const metadata: Metadata = {
   title: "Call",
@@ -14,7 +14,7 @@ export default function CallPage() {
       title="The call"
       lede="The buyer has your brief. Start when you are ready to say it out loud."
     >
-      <CallScreen />
+      <CallRoom />
     </PageShell>
   );
 }

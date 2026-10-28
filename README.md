@@ -58,7 +58,7 @@ lib/coaching.ts       notes parser
 docs/buyer-prompt.md  system prompt to paste into Vapi
 ```
 
-The brief and call screens are client-only (`ssr: false`) because the first render needs `localStorage`. A server render would flash an empty form and then fill it.
+The brief, call, and notes screens are client components. They read `localStorage` through `useSyncExternalStore`, whose server snapshot is empty. That keeps the server HTML and the first client render the same, then fills in the saved brief.
 
 ## Local setup
 

@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { briefIsReady } from "@/lib/brief";
 import { PERSONA_LIST } from "@/lib/personas";
-import { loadBrief, saveBrief } from "@/lib/storage";
+import {
+  getBriefServerSnapshot,
+  getBriefSnapshot,
+  saveBrief,
+  subscribeBrief,
+} from "@/lib/storage";
 import type { PitchBrief } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +27,9 @@ type FieldErrors = {
 
 export function BriefForm() {
   const router = useRouter();
-  const [brief, setBrief] = useState<PitchBrief>(() => loadBrief());
+  // The store's server snapshot is an empty brief, so hydration matches.
+  // After that, the client snapshot is whatever is in localStorage.
+  const brief = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
   const [draft, setDraft] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({
     productName: false,
@@ -30,7 +37,6 @@ export function BriefForm() {
   });
 
   function persist(next: PitchBrief) {
-    setBrief(next);
     saveBrief(next);
   }
 

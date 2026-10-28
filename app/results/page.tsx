@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/page-shell";
-import { ResultsScreen } from "@/components/screens";
+import { ResultsView } from "@/components/results-view";
 
 export const metadata: Metadata = {
   title: "Notes",
@@ -14,7 +14,7 @@ export default function ResultsPage() {
       title="Coaching notes"
       lede="What worked, what to tighten, and one line to try on the next call."
     >
-      <ResultsScreen />
+      <ResultsView />
     </PageShell>
   );
 }

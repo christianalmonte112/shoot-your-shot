@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 export function StartPracticingButton() {
   return (
     <Button
+      nativeButton={false}
       render={<Link href="/brief" />}
       className="h-12 rounded-full px-6 text-base"
     >

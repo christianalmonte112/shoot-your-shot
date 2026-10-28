@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type Vapi from "@vapi-ai/web";
 import { toVariableValues } from "@/lib/brief";
 import { openingLine, getPersona } from "@/lib/personas";
-import { clearCall, getCallSnapshot, saveCall } from "@/lib/storage";
+import { clearCall, saveCall } from "@/lib/storage";
 import { applyTranscript, settleTurns } from "@/lib/transcript";
 import type { CallStatus, PitchBrief, TranscriptRole, TranscriptTurn } from "@/lib/types";
 import { VAPI_ASSISTANT_ID, VAPI_PUBLIC_KEY, missingVapiEnv } from "@/lib/vapi-config";
@@ -53,7 +53,9 @@ function persistTurns(turns: TranscriptTurn[]): void {
  */
 export function useVapiCall(brief: PitchBrief) {
   const [status, setStatus] = useState<CallStatus>("idle");
-  const [turns, setTurns] = useState<TranscriptTurn[]>(() => getCallSnapshot()?.turns ?? []);
+  // Start empty on the server and the client. A saved transcript is read
+  // through the call snapshot in the call screen, so hydration cannot diverge.
+  const [turns, setTurns] = useState<TranscriptTurn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [clientReady, setClientReady] = useState(false);
   const [stopping, setStopping] = useState(false);

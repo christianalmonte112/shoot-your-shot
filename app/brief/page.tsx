@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/page-shell";
-import { BriefScreen } from "@/components/screens";
+import { BriefForm } from "@/components/brief-form";
 
 export const metadata: Metadata = {
   title: "Brief",
@@ -14,7 +14,7 @@ export default function BriefPage() {
       title="The brief"
       lede="Give the buyer enough to push back on. It stays in this browser — there is no account yet."
     >
-      <BriefScreen />
+      <BriefForm />
     </PageShell>
   );
 }
