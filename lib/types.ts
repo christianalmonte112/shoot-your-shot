@@ -54,3 +54,17 @@ export type SavedCall = {
   turns: TranscriptTurn[];
   updatedAt: string;
 };
+
+export type PracticeCallRecord = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  turns: TranscriptTurn[];
+  coaching: {
+    worked: string | null;
+    tighten: string | null;
+    nextLine: string | null;
+    raw: string;
+  } | null;
+};

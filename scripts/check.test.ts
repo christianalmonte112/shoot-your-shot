@@ -5,6 +5,8 @@ import { coachStartIndex, parseCoachingNotes } from "../lib/coaching.ts";
 import { buildSampleCall } from "../lib/sample-call.ts";
 import { applyTranscript } from "../lib/transcript.ts";
 import { EMPTY_BRIEF } from "../lib/types.ts";
+import { readFileSync } from "node:fs";
+import { FREE_CALL_LIMIT, MAX_CALL_SECONDS, freeCallsLabel, remainingFreeCalls, safeNextPath } from "../lib/limits.ts";
 import { friendlyCallError, isIgnorableVapiError } from "../lib/vapi-error.ts";
 
 describe("toVariableValues", () => {
@@ -120,6 +122,44 @@ describe("parseCoachingNotes", () => {
     assert.ok(notes?.nextLine);
     assert.match(notes.worked, /Harbor/);
     assert.match(sample.turns[2]?.text ?? "", /Datadog/);
+  });
+});
+
+describe("free call limit", () => {
+  it("counts down from three and stops at zero", () => {
+    assert.equal(FREE_CALL_LIMIT, 3);
+    assert.equal(MAX_CALL_SECONDS, 420);
+    assert.equal(remainingFreeCalls(0), 3);
+    assert.equal(remainingFreeCalls(2), 1);
+    assert.equal(remainingFreeCalls(3), 0);
+    assert.equal(remainingFreeCalls(9), 0);
+    assert.equal(freeCallsLabel(1), "2 of 3 free calls left");
+    assert.equal(freeCallsLabel(2), "1 of 3 free calls left");
+  });
+
+  it("matches the limit written in the SQL migration", () => {
+    const sql = readFileSync(
+      new URL("../supabase/migrations/20261028160000_init.sql", import.meta.url),
+      "utf8",
+    );
+    assert.match(sql, /call_limit constant integer := 3/);
+    assert.match(sql, /enable row level security/i);
+    assert.match(sql, /auth\.uid\(\)/);
+    assert.match(sql, /free_call_limit/);
+    assert.match(sql, /revoke all on function public\.start_practice_call\(\) from public, anon/);
+  });
+
+  it("only allows in-app paths as the post-login redirect", () => {
+    assert.equal(safeNextPath("/call"), "/call");
+    assert.equal(safeNextPath("https://evil.example"), "/brief");
+    assert.equal(safeNextPath("//evil.example"), "/brief");
+    assert.equal(safeNextPath("/login"), "/brief");
+  });
+
+  it("passes the seven-minute cap through assistant overrides", () => {
+    const source = readFileSync(new URL("../lib/use-vapi-call.ts", import.meta.url), "utf8");
+    assert.match(source, /maxDurationSeconds:\s*MAX_CALL_SECONDS/);
+    assert.match(source, /\/api\/calls/);
   });
 });
 

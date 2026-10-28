@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { briefIsReady } from "@/lib/brief";
@@ -25,18 +25,56 @@ type FieldErrors = {
   productSummary: boolean;
 };
 
-export function BriefForm() {
+export function BriefForm({
+  source = "local",
+  initialBrief,
+}: {
+  /** "local" keeps the draft in this browser. "account" writes it to Supabase. */
+  source?: "local" | "account";
+  initialBrief?: PitchBrief;
+}) {
   const router = useRouter();
-  // The store's server snapshot is an empty brief, so hydration matches.
-  // After that, the client snapshot is whatever is in localStorage.
-  const brief = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
+  // The local store's server snapshot is empty, so hydration matches.
+  // Account mode ignores it and uses the brief loaded on the server.
+  const stored = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
+  const [accountBrief, setAccountBrief] = useState<PitchBrief>(initialBrief ?? stored);
+  const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
+  const dirty = useRef(false);
+  const brief = source === "account" ? accountBrief : stored;
   const [draft, setDraft] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({
     productName: false,
     productSummary: false,
   });
 
+  useEffect(() => {
+    if (source !== "account" || !dirty.current) return;
+    const handle = window.setTimeout(() => {
+      void postBrief(accountBrief);
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [accountBrief, source]);
+
+  async function postBrief(next: PitchBrief) {
+    setSaveState("saving");
+    try {
+      const response = await fetch("/api/brief", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(next),
+      });
+      setSaveState(response.ok ? "saved" : "error");
+    } catch {
+      setSaveState("error");
+    }
+  }
+
   function persist(next: PitchBrief) {
+    if (source === "account") {
+      dirty.current = true;
+      setAccountBrief(next);
+      return;
+    }
     saveBrief(next);
   }
 
@@ -65,7 +103,7 @@ export function BriefForm() {
     });
   }
 
-  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const pending = draft.trim();
     const objections =
@@ -81,12 +119,24 @@ export function BriefForm() {
     persist(next);
     setDraft("");
     if (!briefIsReady(next)) return;
+    if (source === "account") {
+      dirty.current = false;
+      await postBrief(next);
+    }
     router.push("/call");
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid max-w-2xl gap-8" noValidate>
-      <p className="text-sm text-muted-foreground">Saved on this device as you type.</p>
+    <form onSubmit={(event) => void onSubmit(event)} className="grid max-w-2xl gap-8" noValidate>
+      <p className="text-sm text-muted-foreground">
+        {source === "account"
+          ? saveState === "error"
+            ? "Could not save to your account. Check your connection and keep typing."
+            : saveState === "saving"
+              ? "Saving to your account…"
+              : "Saved to your account."
+          : "Saved on this device as you type."}
+      </p>
 
       <div className="grid gap-2">
         <Label htmlFor="productName">Product name</Label>

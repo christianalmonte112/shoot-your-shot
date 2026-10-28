@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type Vapi from "@vapi-ai/web";
+import { parseCoachingNotes } from "@/lib/coaching";
 import { toVariableValues } from "@/lib/brief";
+import { MAX_CALL_SECONDS } from "@/lib/limits";
 import { openingLine, getPersona } from "@/lib/personas";
 import { clearCall, saveCall } from "@/lib/storage";
 import { applyTranscript, settleTurns } from "@/lib/transcript";
@@ -38,10 +41,27 @@ function readTranscriptMessage(message: unknown): SpokenLine | null {
   return { role, text, final };
 }
 
-function persistTurns(turns: TranscriptTurn[]): void {
+type VapiCallOptions = {
+  /** Server mode refuses to dial Vapi until POST /api/calls succeeds. */
+  persistence?: "local" | "server";
+  onAuthorized?: (freeCallsUsed: number) => void;
+  onLimit?: () => void;
+};
+
+function saveLocalTurns(turns: TranscriptTurn[]): void {
   const settled = settleTurns(turns);
   if (settled.length === 0) return;
   saveCall({ turns: settled, updatedAt: new Date().toISOString() });
+}
+
+async function saveServerTurns(callId: string, turns: TranscriptTurn[]): Promise<void> {
+  const settled = settleTurns(turns);
+  const coaching = parseCoachingNotes(settled);
+  await fetch(`/api/calls/${callId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ turns: settled, coaching }),
+  });
 }
 
 /**
@@ -51,7 +71,8 @@ function persistTurns(turns: TranscriptTurn[]): void {
  * in the dashboard. We never call the LLM ourselves — we pass the brief as
  * assistantOverrides.variableValues and listen for transcript events.
  */
-export function useVapiCall(brief: PitchBrief) {
+export function useVapiCall(brief: PitchBrief, options: VapiCallOptions = {}) {
+  const router = useRouter();
   const [status, setStatus] = useState<CallStatus>("idle");
   // Start empty on the server and the client. A saved transcript is read
   // through the call snapshot in the call screen, so hydration cannot diverge.
@@ -64,6 +85,12 @@ export function useVapiCall(brief: PitchBrief) {
   const turnsRef = useRef<TranscriptTurn[]>(turns);
   const statusRef = useRef<CallStatus>(status);
   const rollbackRef = useRef<TranscriptTurn[] | null>(null);
+  const callIdRef = useRef<string | null>(null);
+  const optionsRef = useRef(options);
+
+  useEffect(() => {
+    optionsRef.current = options;
+  });
 
   const setCallStatus = useCallback((next: CallStatus) => {
     statusRef.current = next;
@@ -80,7 +107,9 @@ export function useVapiCall(brief: PitchBrief) {
     if (!previous) return;
     rollbackRef.current = null;
     setTranscript(previous);
-    if (previous.length > 0) persistTurns(previous);
+    if (previous.length > 0 && optionsRef.current.persistence !== "server") {
+      saveLocalTurns(previous);
+    }
   }, [setTranscript]);
 
   useEffect(() => {
@@ -105,11 +134,15 @@ export function useVapiCall(brief: PitchBrief) {
 
         active.on("call-end", () => {
           setStopping(false);
-          setCallStatus("ended");
-          const settled = settleTurns(turnsRef.current);
-          setTranscript(settled);
-          persistTurns(settled);
-        });
+        setCallStatus("ended");
+        const settled = settleTurns(turnsRef.current);
+        setTranscript(settled);
+        if (optionsRef.current.persistence === "server" && callIdRef.current) {
+          void saveServerTurns(callIdRef.current, settled);
+        } else if (optionsRef.current.persistence !== "server") {
+          saveLocalTurns(settled);
+        }
+      });
 
         active.on("call-start-failed", (event) => {
           setCallStatus("idle");
@@ -128,7 +161,14 @@ export function useVapiCall(brief: PitchBrief) {
             spoken.final,
           );
           setTranscript(next);
-          if (spoken.final) persistTurns(next.filter((turn) => turn.final));
+          if (spoken.final) {
+          const finalTurns = next.filter((turn) => turn.final);
+          if (optionsRef.current.persistence === "server" && callIdRef.current) {
+            void saveServerTurns(callIdRef.current, finalTurns);
+          } else if (optionsRef.current.persistence !== "server") {
+            saveLocalTurns(finalTurns);
+          }
+        }
         });
 
         active.on("error", (sdkError: unknown) => {
@@ -159,7 +199,11 @@ export function useVapiCall(brief: PitchBrief) {
       void current.stop().catch(() => {});
       if (statusRef.current === "live" || statusRef.current === "connecting") {
         setCallStatus("ended");
-        persistTurns(turnsRef.current);
+        if (optionsRef.current.persistence === "server" && callIdRef.current) {
+          void saveServerTurns(callIdRef.current, turnsRef.current);
+        } else if (optionsRef.current.persistence !== "server") {
+          saveLocalTurns(turnsRef.current);
+        }
       }
     };
   }, [restoreRollback, setCallStatus, setTranscript]);
@@ -171,28 +215,70 @@ export function useVapiCall(brief: PitchBrief) {
     // would stick for the rest of the function, even after we set it to connecting.
     const currentStatus = statusRef.current;
     if (currentStatus === "connecting" || currentStatus === "live") return;
+    if (optionsRef.current.persistence !== "server") {
+      setError("Sign in is required before a call can start.");
+      return;
+    }
 
     rollbackRef.current = settleTurns(turnsRef.current);
     setError(null);
     setStopping(false);
     setCallStatus("connecting");
+
+    let callId: string;
+    try {
+      const response = await fetch("/api/calls", { method: "POST" });
+      if (response.status === 401) {
+        setCallStatus("idle");
+        router.push("/login?next=/call");
+        return;
+      }
+      if (response.status === 403) {
+        setCallStatus("idle");
+        optionsRef.current.onLimit?.();
+        return;
+      }
+      if (!response.ok) {
+        setCallStatus("idle");
+        setError("The call was not authorized, so it did not start.");
+        return;
+      }
+      const payload = (await response.json()) as { callId?: string; freeCallsUsed?: number };
+      if (!payload.callId) {
+        setCallStatus("idle");
+        setError("The call was not authorized, so it did not start.");
+        return;
+      }
+      callId = payload.callId;
+      callIdRef.current = callId;
+      if (typeof payload.freeCallsUsed === "number") {
+        optionsRef.current.onAuthorized?.(payload.freeCallsUsed);
+      }
+    } catch {
+      setCallStatus("idle");
+      setError("The call was not authorized, so it did not start.");
+      return;
+    }
+
     setTranscript([]);
     clearCall();
 
     const persona = getPersona(brief.persona);
 
     try {
-      // Second argument is assistantOverrides. variableValues fills {{keys}}
-      // in the assistant's system prompt for this call only.
+      // variableValues fills {{keys}} in the assistant prompt for this call.
+      // maxDurationSeconds is the seven-minute cap, enforced by Vapi itself.
       const call = await vapi.start(VAPI_ASSISTANT_ID, {
         variableValues: toVariableValues(brief),
         firstMessage: openingLine(persona, brief.productName),
+        maxDurationSeconds: MAX_CALL_SECONDS,
       });
 
       if (!call && statusRef.current === "connecting") {
         setCallStatus("idle");
+        if (callIdRef.current) void saveServerTurns(callIdRef.current, []);
         restoreRollback();
-        setError((existing) => existing ?? "The call did not start.");
+        setError((existing) => existing ?? "The call did not start. That attempt still counts.");
         return;
       }
 
@@ -202,10 +288,11 @@ export function useVapiCall(brief: PitchBrief) {
       }
     } catch (sdkError) {
       setCallStatus("idle");
+      if (callIdRef.current) void saveServerTurns(callIdRef.current, turnsRef.current);
       restoreRollback();
-      setError(friendlyCallError(sdkError) ?? "The call could not start.");
+      setError(friendlyCallError(sdkError) ?? "The call could not start. That attempt still counts.");
     }
-  }, [brief, restoreRollback, setCallStatus, setTranscript]);
+  }, [brief, restoreRollback, router, setCallStatus, setTranscript]);
 
   const end = useCallback(async () => {
     const vapi = vapiRef.current;
@@ -224,9 +311,14 @@ export function useVapiCall(brief: PitchBrief) {
       setCallStatus("ended");
       const settled = settleTurns(turnsRef.current);
       setTranscript(settled);
-      persistTurns(settled);
+      if (callIdRef.current) {
+        const callId = callIdRef.current;
+        void saveServerTurns(callId, settled).finally(() => router.refresh());
+      } else {
+        saveLocalTurns(settled);
+      }
     }
-  }, [setCallStatus, setTranscript]);
+  }, [router, setCallStatus, setTranscript]);
 
   return {
     status,

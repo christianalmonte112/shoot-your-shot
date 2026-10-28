@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
+import { AccountFallback } from "@/components/account-fallback";
 import { PageShell } from "@/components/page-shell";
-import { ResultsView } from "@/components/results-view";
+import { ResultsScreen } from "@/components/practice-screens";
 
 export const metadata: Metadata = {
   title: "Notes",
@@ -14,7 +16,9 @@ export default function ResultsPage() {
       title="Coaching notes"
       lede="What worked, what to tighten, and one line to try on the next call."
     >
-      <ResultsView />
+      <Suspense fallback={<AccountFallback />}>
+        <ResultsScreen />
+      </Suspense>
     </PageShell>
   );
 }

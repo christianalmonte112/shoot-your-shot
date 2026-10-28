@@ -11,10 +11,11 @@ export function SetupNotice({ missing }: { missing: string[] }) {
       <CardHeader>
         <CardTitle>Voice is not configured yet</CardTitle>
         <CardDescription className="text-foreground/80">
-          The rest of the app works. Add these public env vars to{" "}
-          <span className="font-mono text-xs">.env.local</span>, restart the dev
-          server, and the Start call button will show up. The prompt those
-          variables fill is in <span className="font-mono text-xs">docs/buyer-prompt.md</span>.
+          Add these public env vars to{" "}
+          <span className="font-mono text-xs">.env.local</span> and restart the dev
+          server. Start call also waits for a signed-in account so the free-call
+          limit can be checked first. The prompt is in{" "}
+          <span className="font-mono text-xs">docs/buyer-prompt.md</span>.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -1,13 +1,15 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Mic, PhoneOff } from "lucide-react";
 import { BriefSummary } from "@/components/brief-summary";
 import { SetupNotice } from "@/components/setup-notice";
 import { TranscriptLog } from "@/components/transcript-log";
 import { Button } from "@/components/ui/button";
+import { FreeCallWall } from "@/components/free-call-wall";
 import { briefIsReady } from "@/lib/brief";
+import { freeCallsLabel, remainingFreeCalls } from "@/lib/limits";
 import { getPersona } from "@/lib/personas";
 import {
   getBriefServerSnapshot,
@@ -17,7 +19,7 @@ import {
   subscribeBrief,
   subscribeCall,
 } from "@/lib/storage";
-import type { CallStatus } from "@/lib/types";
+import type { CallStatus, TranscriptTurn } from "@/lib/types";
 import { useVapiCall } from "@/lib/use-vapi-call";
 import { vapiIsConfigured } from "@/lib/vapi-config";
 import { cn } from "@/lib/utils";
@@ -29,9 +31,25 @@ const STATUS_LABEL: Record<CallStatus, string> = {
   ended: "Ended",
 };
 
-export function CallRoom() {
+export function CallRoom({
+  source = "local",
+  email = "",
+  callsUsed = 0,
+  callLimit = 3,
+  onWaitlist = false,
+  pastTurns = [],
+}: {
+  source?: "local" | "account";
+  email?: string;
+  callsUsed?: number;
+  callLimit?: number;
+  onWaitlist?: boolean;
+  pastTurns?: TranscriptTurn[];
+}) {
   const brief = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
   const savedCall = useSyncExternalStore(subscribeCall, getCallSnapshot, getCallServerSnapshot);
+  const [used, setUsed] = useState(callsUsed);
+  const [blocked, setBlocked] = useState(false);
   const {
     status,
     turns,
@@ -42,14 +60,25 @@ export function CallRoom() {
     dismissError,
     start,
     end,
-  } = useVapiCall(brief);
+  } = useVapiCall(brief, {
+    persistence: source === "account" ? "server" : "local",
+    onAuthorized: (freeCallsUsed) => setUsed(freeCallsUsed),
+    onLimit: () => {
+      setUsed(callLimit);
+      setBlocked(true);
+    },
+  });
   const configured = vapiIsConfigured();
   const ready = briefIsReady(brief);
   const persona = getPersona(brief.persona);
   const inCall = status === "connecting" || status === "live";
-  const canStart = configured && ready && clientReady && !inCall;
-  // Live lines win. Before a call starts, show the transcript saved last time.
-  const visibleTurns = turns.length > 0 ? turns : inCall ? [] : (savedCall?.turns ?? []);
+  const remaining = remainingFreeCalls(Math.max(used, callsUsed, blocked ? callLimit : 0), callLimit);
+  const canStart =
+    source === "account" && remaining > 0 && configured && ready && clientReady && !inCall;
+  const remembered = source === "account" ? pastTurns : (savedCall?.turns ?? []);
+  // Live lines win. Before a call starts, show the transcript from the last call.
+  const visibleTurns = turns.length > 0 ? turns : inCall ? [] : remembered;
+  const showWall = source === "account" && remaining <= 0 && !inCall;
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.2fr)]">
@@ -94,7 +123,17 @@ export function CallRoom() {
         ) : null}
 
         <div className="grid gap-3">
-          {inCall ? (
+          {source === "account" ? (
+            <p className="text-sm font-medium text-primary">{freeCallsLabel(used, callLimit)}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Calls start only after you sign in, so the free-call limit is checked on the server.
+            </p>
+          )}
+
+          {showWall ? (
+            <FreeCallWall email={email} alreadyJoined={onWaitlist} />
+          ) : inCall ? (
             <Button
               type="button"
               variant="secondary"
@@ -105,7 +144,7 @@ export function CallRoom() {
               <PhoneOff />
               {stopping ? "Ending the call…" : status === "connecting" ? "Connecting…" : "End call"}
             </Button>
-          ) : configured ? (
+          ) : source === "account" && configured ? (
             <Button
               type="button"
               className="h-14 w-full rounded-full text-base sm:h-16 sm:text-lg"
@@ -121,9 +160,9 @@ export function CallRoom() {
             </Button>
           ) : null}
 
-          {configured && status === "idle" ? (
+          {source === "account" && configured && status === "idle" && remaining > 0 ? (
             <p className="text-sm text-muted-foreground">
-              Your browser will ask for the microphone. {persona.buyerName} speaks first.
+              Starting a call uses one free call. Your browser will ask for the microphone. {persona.buyerName} speaks first.
             </p>
           ) : null}
 

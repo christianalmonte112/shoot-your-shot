@@ -1,8 +1,9 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { coachStartIndex, parseCoachingNotes } from "@/lib/coaching";
+import { formatCallWhen, formatDuration } from "@/lib/format-call";
 import { getPersona } from "@/lib/personas";
 import { buildSampleCall } from "@/lib/sample-call";
 import {
@@ -14,6 +15,7 @@ import {
   subscribeBrief,
   subscribeCall,
 } from "@/lib/storage";
+import type { PitchBrief, PracticeCallRecord } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TranscriptLog } from "@/components/transcript-log";
@@ -36,13 +38,31 @@ const NOTE_CARDS = [
   },
 ];
 
-export function ResultsView() {
-  const brief = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
-  const call = useSyncExternalStore(subscribeCall, getCallSnapshot, getCallServerSnapshot);
+export function ResultsView({
+  source = "local",
+  brief: accountBrief,
+  calls = [],
+}: {
+  source?: "local" | "account";
+  brief?: PitchBrief;
+  calls?: PracticeCallRecord[];
+}) {
+  const storedBrief = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
+  const storedCall = useSyncExternalStore(subscribeCall, getCallSnapshot, getCallServerSnapshot);
+  const [selectedId, setSelectedId] = useState(calls[0]?.id ?? "");
 
+  const brief = source === "account" && accountBrief ? accountBrief : storedBrief;
+  const selected = calls.find((call) => call.id === selectedId) ?? calls[0];
   const persona = getPersona(brief.persona);
-  const turns = call?.turns ?? [];
-  const notes = turns.length > 0 ? parseCoachingNotes(turns) : null;
+  const turns =
+    source === "account" ? (selected?.turns ?? []) : (storedCall?.turns ?? []);
+  const storedNotes = source === "account" ? (selected?.coaching ?? null) : null;
+  const notes =
+    storedNotes && (storedNotes.worked || storedNotes.tighten || storedNotes.nextLine)
+      ? storedNotes
+      : turns.length > 0
+        ? parseCoachingNotes(turns)
+        : null;
   const hasLabeledNote = Boolean(notes && (notes.worked || notes.tighten || notes.nextLine));
   const product = brief.productName.trim();
 
@@ -58,6 +78,30 @@ export function ResultsView() {
         {persona.label} buyer, {persona.buyerName}
       </p>
 
+      {source === "account" && calls.length > 0 ? (
+        <ul className="flex gap-2 overflow-x-auto pb-1" aria-label="Past calls">
+          {calls.map((call) => {
+            const active = call.id === (selected?.id ?? "");
+            return (
+              <li key={call.id} className="shrink-0">
+                <button
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setSelectedId(call.id)}
+                  className={
+                    active
+                      ? "rounded-full bg-primary/15 px-3 py-1.5 text-sm font-medium text-foreground"
+                      : "rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                  }
+                >
+                  {formatCallWhen(call.startedAt)} · {formatDuration(call.durationSeconds)}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
       {turns.length === 0 ? (
         <Card>
           <CardHeader>
@@ -65,9 +109,9 @@ export function ResultsView() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Run a practice call and the notes land here after the buyer says
-              “switching to coach mode”. You can also load a scripted sample to
-              see the three cards before Vapi is connected.
+              {source === "account"
+                ? "Finish a practice call and the notes land here after the buyer says “switching to coach mode”."
+                : "Run a practice call and the notes land here after the buyer says “switching to coach mode”. You can also load a scripted sample to see the three cards before Vapi is connected."}
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
@@ -77,14 +121,16 @@ export function ResultsView() {
               >
                 Go to the call
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 rounded-full px-5"
-                onClick={previewSample}
-              >
-                Preview with a sample call
-              </Button>
+              {source === "local" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 rounded-full px-5"
+                  onClick={previewSample}
+                >
+                  Preview with a sample call
+                </Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>

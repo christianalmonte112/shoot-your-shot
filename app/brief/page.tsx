@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
+import { AccountFallback } from "@/components/account-fallback";
 import { PageShell } from "@/components/page-shell";
-import { BriefForm } from "@/components/brief-form";
+import { BriefScreen } from "@/components/practice-screens";
 
 export const metadata: Metadata = {
   title: "Brief",
@@ -12,9 +14,11 @@ export default function BriefPage() {
     <PageShell
       eyebrow="Before you dial"
       title="The brief"
-      lede="Give the buyer enough to push back on. It stays in this browser — there is no account yet."
+      lede="Give the buyer enough to push back on. A signed-in brief is saved to your account."
     >
-      <BriefForm />
+      <Suspense fallback={<AccountFallback />}>
+        <BriefScreen />
+      </Suspense>
     </PageShell>
   );
 }

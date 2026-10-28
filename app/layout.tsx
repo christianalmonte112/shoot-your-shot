@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
-import { SiteHeader } from "@/components/site-header";
+import { HeaderSlot } from "@/components/header-slot";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -42,7 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <SiteHeader />
+        <HeaderSlot />
         <main id="main" className="flex-1">
           {children}
         </main>

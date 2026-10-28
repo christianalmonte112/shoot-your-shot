@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
+import { AccountFallback } from "@/components/account-fallback";
 import { PageShell } from "@/components/page-shell";
-import { CallRoom } from "@/components/call-room";
+import { CallScreen } from "@/components/practice-screens";
 
 export const metadata: Metadata = {
   title: "Call",
@@ -12,9 +14,11 @@ export default function CallPage() {
     <PageShell
       eyebrow="Live practice"
       title="The call"
-      lede="The buyer has your brief. Start when you are ready to say it out loud."
+      lede="Each account gets three calls. Each call stops at seven minutes."
     >
-      <CallRoom />
+      <Suspense fallback={<AccountFallback />}>
+        <CallScreen />
+      </Suspense>
     </PageShell>
   );
 }
