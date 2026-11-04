@@ -6,7 +6,9 @@ import { buildSampleCall } from "../lib/sample-call.ts";
 import { applyTranscript } from "../lib/transcript.ts";
 import { EMPTY_BRIEF } from "../lib/types.ts";
 import { readFileSync } from "node:fs";
+import { assistantOverridesForBrief } from "../lib/assistant-overrides.ts";
 import { FREE_CALL_LIMIT, MAX_CALL_SECONDS, freeCallsLabel, remainingFreeCalls, safeNextPath } from "../lib/limits.ts";
+import { normalizePhone } from "../lib/phone.ts";
 import { friendlyCallError, isIgnorableVapiError } from "../lib/vapi-error.ts";
 
 describe("toVariableValues", () => {
@@ -157,9 +159,37 @@ describe("free call limit", () => {
   });
 
   it("passes the seven-minute cap through assistant overrides", () => {
-    const source = readFileSync(new URL("../lib/use-vapi-call.ts", import.meta.url), "utf8");
-    assert.match(source, /maxDurationSeconds:\s*MAX_CALL_SECONDS/);
-    assert.match(source, /\/api\/calls/);
+    const hook = readFileSync(new URL("../lib/use-vapi-call.ts", import.meta.url), "utf8");
+    const helper = readFileSync(new URL("../lib/assistant-overrides.ts", import.meta.url), "utf8");
+    const phoneRoute = readFileSync(new URL("../app/api/call-me/route.ts", import.meta.url), "utf8");
+    assert.match(hook, /assistantOverridesForBrief/);
+    assert.match(helper, /maxDurationSeconds:\s*MAX_CALL_SECONDS/);
+    assert.match(helper, /toVariableValues/);
+    assert.match(phoneRoute, /start_practice_call/);
+    assert.match(phoneRoute, /https:\/\/api\.vapi\.ai\/call/);
+    assert.match(phoneRoute, /assistantOverridesForBrief/);
+    assert.doesNotMatch(phoneRoute, /NEXT_PUBLIC_VAPI_PRIVATE/);
+  });
+});
+
+describe("phone numbers", () => {
+  it("accepts E.164 and ignores light punctuation", () => {
+    assert.equal(normalizePhone("+15551234567"), "+15551234567");
+    assert.equal(normalizePhone("+1 (555) 123-4567"), "+15551234567");
+    assert.equal(normalizePhone("5551234567"), null);
+    assert.equal(normalizePhone("+0123"), null);
+    assert.equal(normalizePhone(""), null);
+  });
+});
+
+describe("assistant overrides", () => {
+  it("uses the same variable values the web call sends", () => {
+    const brief = { ...EMPTY_BRIEF, productName: "Harbor", productSummary: "Watches deploys." };
+    const overrides = assistantOverridesForBrief(brief);
+    const direct = toVariableValues(brief);
+    assert.deepEqual(overrides.variableValues, direct);
+    assert.equal(overrides.maxDurationSeconds, 420);
+    assert.match(overrides.firstMessage, /Harbor/);
   });
 });
 

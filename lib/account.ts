@@ -18,6 +18,7 @@ export type AccountSnapshot = {
   callsUsed: number;
   callLimit: number;
   onWaitlist: boolean;
+  phone: string | null;
   calls: PracticeCallRecord[];
 };
 
@@ -62,7 +63,7 @@ export async function loadAccount(): Promise<AccountSnapshot | { error: string }
   const user = data.user;
   if (!user) return null;
 
-  const [briefResult, usageResult, callsResult, waitlistResult] = await Promise.all([
+  const [briefResult, usageResult, callsResult, waitlistResult, profileResult] = await Promise.all([
     supabase
       .from("briefs")
       .select(
@@ -79,11 +80,16 @@ export async function loadAccount(): Promise<AccountSnapshot | { error: string }
       .eq("user_id", user.id)
       .order("started_at", { ascending: false }),
     supabase.from("waitlist").select("user_id").eq("user_id", user.id).maybeSingle(),
+    supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle(),
   ]);
 
-  const queryError = [briefResult.error, usageResult.error, callsResult.error, waitlistResult.error].find(
-    (item) => item,
-  );
+  const queryError = [
+    briefResult.error,
+    usageResult.error,
+    callsResult.error,
+    waitlistResult.error,
+    profileResult.error,
+  ].find((item) => item);
   if (queryError) return { error: queryError.message };
 
   const briefRow = briefResult.data;
@@ -115,6 +121,7 @@ export async function loadAccount(): Promise<AccountSnapshot | { error: string }
     callsUsed: usageResult.data?.free_calls_used ?? 0,
     callLimit: FREE_CALL_LIMIT,
     onWaitlist: Boolean(waitlistResult.data),
+    phone: profileResult.data?.phone ?? null,
     calls,
   };
 }

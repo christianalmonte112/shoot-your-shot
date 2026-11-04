@@ -109,6 +109,14 @@ Create one assistant and set:
 
 Then copy the public key and the assistant id into `.env.local`.
 
+## Phone calls
+
+"Call me" on the practice page rings the number saved on the builder's profile. `POST /api/call-me` checks they are signed in, saves the number, then calls `start_practice_call()` so a phone call spends one of the same three free calls. Only after that does the server POST to `https://api.vapi.ai/call` with `VAPI_PRIVATE_KEY`. The assistant id, the brief's variable values, and the seven-minute cap match the browser call.
+
+The free number Vapi gives you cannot place outbound calls. Import a Twilio number you pay for (or buy a number in Vapi) and put its id in `VAPI_PHONE_NUMBER_ID`. Both of those variables stay on the server. Do not add `NEXT_PUBLIC_` to the private key.
+
+Run [`supabase/migrations/20261104140000_phone_and_vapi_call_id.sql`](supabase/migrations/20261104140000_phone_and_vapi_call_id.sql) after the first migration. It adds `profiles.phone` and `calls.vapi_call_id`, which is how a later transcript webhook can find the same row.
+
 ## Accounts and the free-call limit
 
 Sign-in is Supabase Auth: an email magic link, or Google. Both return to `/auth/callback`, which stores the session in cookies. `proxy.ts` refreshes that session on each request. `/brief`, `/call`, and `/results` redirect to `/login` when nobody is signed in. The landing page stays public.
@@ -131,7 +139,7 @@ The Vapi public key still lives in the browser, because that is how the Web SDK 
 
 ## Deploying on Vercel
 
-This is a standard Next.js app. Import the repo, set the four `NEXT_PUBLIC_` environment variables, and deploy.
+This is a standard Next.js app. Import the repo, set the public env vars plus `VAPI_PRIVATE_KEY` and `VAPI_PHONE_NUMBER_ID`, and deploy.
 
 `NEXT_PUBLIC_` values are baked in at build time. If you add or change them later, redeploy. A new value does not show up on an old build.
 

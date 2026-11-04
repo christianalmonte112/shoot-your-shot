@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type Vapi from "@vapi-ai/web";
+import { assistantOverridesForBrief } from "@/lib/assistant-overrides";
 import { parseCoachingNotes } from "@/lib/coaching";
-import { toVariableValues } from "@/lib/brief";
-import { MAX_CALL_SECONDS } from "@/lib/limits";
-import { openingLine, getPersona } from "@/lib/personas";
 import { clearCall, saveCall } from "@/lib/storage";
 import { applyTranscript, settleTurns } from "@/lib/transcript";
 import type { CallStatus, PitchBrief, TranscriptRole, TranscriptTurn } from "@/lib/types";
@@ -263,16 +261,18 @@ export function useVapiCall(brief: PitchBrief, options: VapiCallOptions = {}) {
     setTranscript([]);
     clearCall();
 
-    const persona = getPersona(brief.persona);
-
     try {
-      // variableValues fills {{keys}} in the assistant prompt for this call.
-      // maxDurationSeconds is the seven-minute cap, enforced by Vapi itself.
-      const call = await vapi.start(VAPI_ASSISTANT_ID, {
-        variableValues: toVariableValues(brief),
-        firstMessage: openingLine(persona, brief.productName),
-        maxDurationSeconds: MAX_CALL_SECONDS,
-      });
+      // Same overrides the phone route sends: brief variables, opener, 7 minutes.
+      const call = await vapi.start(VAPI_ASSISTANT_ID, assistantOverridesForBrief(brief));
+      const vapiCallId =
+        call && typeof call === "object" && "id" in call && typeof call.id === "string" ? call.id : null;
+      if (vapiCallId && callIdRef.current) {
+        void fetch(`/api/calls/${callIdRef.current}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ vapiCallId }),
+        });
+      }
 
       if (!call && statusRef.current === "connecting") {
         setCallStatus("idle");

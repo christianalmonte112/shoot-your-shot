@@ -13,9 +13,9 @@ function AccountDataError({ message }: { message: string }) {
       <CardHeader>
         <CardTitle>Could not read your account</CardTitle>
         <CardDescription className="text-foreground/80">
-          The database query failed. If you have not run the migration yet, run{" "}
-          <span className="font-mono text-xs">supabase/migrations/20261028160000_init.sql</span> in the
-          Supabase SQL editor.
+          The database query failed. Run both files in{" "}
+          <span className="font-mono text-xs">supabase/migrations</span> in the Supabase SQL editor,
+          including <span className="font-mono text-xs">20261104140000_phone_and_vapi_call_id.sql</span>.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -67,6 +67,8 @@ export async function CallScreen() {
       callLimit={account.callLimit}
       onWaitlist={account.onWaitlist}
       pastTurns={account.calls[0]?.turns ?? []}
+      accountBrief={account.brief}
+      savedPhone={account.phone ?? ""}
     />
   );
 }

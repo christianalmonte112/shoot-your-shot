@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Mic, PhoneOff } from "lucide-react";
 import { BriefSummary } from "@/components/brief-summary";
+import { CallMePanel } from "@/components/call-me-panel";
 import { SetupNotice } from "@/components/setup-notice";
 import { TranscriptLog } from "@/components/transcript-log";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import {
   subscribeBrief,
   subscribeCall,
 } from "@/lib/storage";
-import type { CallStatus, TranscriptTurn } from "@/lib/types";
+import type { CallStatus, PitchBrief, TranscriptTurn } from "@/lib/types";
 import { useVapiCall } from "@/lib/use-vapi-call";
 import { vapiIsConfigured } from "@/lib/vapi-config";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,8 @@ export function CallRoom({
   callLimit = 3,
   onWaitlist = false,
   pastTurns = [],
+  accountBrief,
+  savedPhone = "",
 }: {
   source?: "local" | "account";
   email?: string;
@@ -45,8 +48,11 @@ export function CallRoom({
   callLimit?: number;
   onWaitlist?: boolean;
   pastTurns?: TranscriptTurn[];
+  accountBrief?: PitchBrief;
+  savedPhone?: string;
 }) {
-  const brief = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
+  const storedBrief = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
+  const brief = source === "account" && accountBrief ? accountBrief : storedBrief;
   const savedCall = useSyncExternalStore(subscribeCall, getCallSnapshot, getCallServerSnapshot);
   const [used, setUsed] = useState(callsUsed);
   const [blocked, setBlocked] = useState(false);
@@ -164,6 +170,18 @@ export function CallRoom({
             <p className="text-sm text-muted-foreground">
               Starting a call uses one free call. Your browser will ask for the microphone. {persona.buyerName} speaks first.
             </p>
+          ) : null}
+
+          {source === "account" && !showWall && !inCall ? (
+            <CallMePanel
+              savedPhone={savedPhone}
+              disabled={!ready || remaining <= 0}
+              onAuthorized={(freeCallsUsed) => setUsed(freeCallsUsed)}
+              onLimit={() => {
+                setUsed(callLimit);
+                setBlocked(true);
+              }}
+            />
           ) : null}
 
           {status === "ended" || (status === "idle" && visibleTurns.length > 0) ? (
