@@ -43,7 +43,9 @@ export async function BriefScreen() {
   const account = await loadAccount();
   if (!account) redirect("/login?next=/brief");
   if ("error" in account) return <AccountDataError message={account.error} />;
-  return <BriefForm source="account" initialBrief={account.brief} />;
+  return (
+    <BriefForm source="account" initialBrief={account.brief} initialSettings={account.buyerSettings} />
+  );
 }
 
 export async function CallScreen() {
@@ -69,6 +71,7 @@ export async function CallScreen() {
       pastTurns={account.calls[0]?.turns ?? []}
       accountBrief={account.brief}
       savedPhone={account.phone ?? ""}
+      buyerSettings={account.buyerSettings}
     />
   );
 }

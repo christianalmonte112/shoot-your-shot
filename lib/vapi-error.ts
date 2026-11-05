@@ -21,6 +21,17 @@ function digMessage(error: unknown): string | null {
  * Noise-cancellation setup can fail without ending the call.
  * The SDK reports that on the same `error` channel as a real failure.
  */
+/** A short message for the builder. Never a bearer token or the private key. */
+export function publicVapiError(body: unknown): string {
+  if (!body || typeof body !== "object") return "Vapi could not place the call.";
+  const record = body as Record<string, unknown>;
+  const message = typeof record.message === "string" ? record.message.trim() : "";
+  if (!message || /bearer\s+\S+/i.test(message) || message.includes("VAPI_PRIVATE_KEY")) {
+    return "Vapi could not place the call.";
+  }
+  return message.slice(0, 280);
+}
+
 export function isIgnorableVapiError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const record = error as Record<string, unknown>;

@@ -111,11 +111,15 @@ Then copy the public key and the assistant id into `.env.local`.
 
 ## Phone calls
 
-"Call me" on the practice page rings the number saved on the builder's profile. `POST /api/call-me` checks they are signed in, saves the number, then calls `start_practice_call()` so a phone call spends one of the same three free calls. Only after that does the server POST to `https://api.vapi.ai/call` with `VAPI_PRIVATE_KEY`. The assistant id, the brief's variable values, and the seven-minute cap match the browser call.
+"Call me" on the practice page asks the server to ring a number. The browser call stays available. Both spend a call only after `start_practice_call()` accepts them, and both send the same assistant overrides, including a seven-minute cap.
 
-The free number Vapi gives you cannot place outbound calls. Import a Twilio number you pay for (or buy a number in Vapi) and put its id in `VAPI_PHONE_NUMBER_ID`. Both of those variables stay on the server. Do not add `NEXT_PUBLIC_` to the private key.
+Outbound dialing is off unless `OUTBOUND_CALLS_ENABLED` is exactly `true` and the number is listed in `OUTBOUND_ALLOWED_NUMBERS`. Any other number is refused before a free call is counted. That is deliberate. The route will not dial an arbitrary phone just because a signed-in user typed it.
 
-Run [`supabase/migrations/20261104140000_phone_and_vapi_call_id.sql`](supabase/migrations/20261104140000_phone_and_vapi_call_id.sql) after the first migration. It adds `profiles.phone` and `calls.vapi_call_id`, which is how a later transcript webhook can find the same row.
+The free number Vapi gives you cannot place outbound calls. Import a Twilio number you pay for (or buy a number in Vapi) and put its id in `VAPI_PHONE_NUMBER_ID`. `VAPI_PRIVATE_KEY` stays on the server.
+
+When a call ends, Vapi can POST to `/api/vapi/webhook`. The request must carry `VAPI_WEBHOOK_SECRET`. The handler saves the full transcript and writes coaching from the seller's lines only. It uses `SUPABASE_SERVICE_ROLE_KEY` for that write. Without those two, phone transcripts are not reconciled. That path is live-unverified until those secrets and a real call exist.
+
+Run the migrations in filename order. `20261104140000_phone_and_vapi_call_id.sql` adds the phone and the Vapi call id. `20261105160000_buyer_settings_and_call_safety.sql` adds buyer settings, idempotent call accounting, and the webhook table.
 
 ## Accounts and the free-call limit
 

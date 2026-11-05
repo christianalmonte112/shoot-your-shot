@@ -7,6 +7,7 @@ import { assistantOverridesForBrief } from "@/lib/assistant-overrides";
 import { parseCoachingNotes } from "@/lib/coaching";
 import { clearCall, saveCall } from "@/lib/storage";
 import { applyTranscript, settleTurns } from "@/lib/transcript";
+import type { BuyerSettings } from "@/lib/buyer-settings";
 import type { CallStatus, PitchBrief, TranscriptRole, TranscriptTurn } from "@/lib/types";
 import { VAPI_ASSISTANT_ID, VAPI_PUBLIC_KEY, missingVapiEnv } from "@/lib/vapi-config";
 import { friendlyCallError } from "@/lib/vapi-error";
@@ -42,6 +43,7 @@ function readTranscriptMessage(message: unknown): SpokenLine | null {
 type VapiCallOptions = {
   /** Server mode refuses to dial Vapi until POST /api/calls succeeds. */
   persistence?: "local" | "server";
+  settings?: BuyerSettings;
   onAuthorized?: (freeCallsUsed: number) => void;
   onLimit?: () => void;
 };
@@ -225,7 +227,10 @@ export function useVapiCall(brief: PitchBrief, options: VapiCallOptions = {}) {
 
     let callId: string;
     try {
-      const response = await fetch("/api/calls", { method: "POST" });
+      const response = await fetch("/api/calls", {
+        method: "POST",
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+      });
       if (response.status === 401) {
         setCallStatus("idle");
         router.push("/login?next=/call");
@@ -263,7 +268,10 @@ export function useVapiCall(brief: PitchBrief, options: VapiCallOptions = {}) {
 
     try {
       // Same overrides the phone route sends: brief variables, opener, 7 minutes.
-      const call = await vapi.start(VAPI_ASSISTANT_ID, assistantOverridesForBrief(brief));
+      const call = await vapi.start(
+        VAPI_ASSISTANT_ID,
+        assistantOverridesForBrief(brief, optionsRef.current.settings),
+      );
       const vapiCallId =
         call && typeof call === "object" && "id" in call && typeof call.id === "string" ? call.id : null;
       if (vapiCallId && callIdRef.current) {

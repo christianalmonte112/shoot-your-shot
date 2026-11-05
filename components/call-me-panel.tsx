@@ -49,7 +49,10 @@ export function CallMePanel({
     try {
       const response = await fetch("/api/call-me", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "Idempotency-Key": crypto.randomUUID(),
+        },
         body: JSON.stringify({ phone }),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -59,10 +62,15 @@ export function CallMePanel({
         phone?: string;
       } | null;
 
-      if (response.status === 403 || payload?.error === "free_call_limit") {
+      if (payload?.error === "free_call_limit") {
         setStatus("idle");
         onLimit();
         setError("You've used your free practice calls.");
+        return;
+      }
+      if (payload?.error === "outbound_disabled" || payload?.error === "not_allowlisted") {
+        setStatus("idle");
+        setError("Outbound calls are off until this number is on the verified allowlist. No call was placed.");
         return;
       }
       if (response.status === 400 && payload?.error === "missing_phone") {

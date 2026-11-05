@@ -1,3 +1,4 @@
+import { readIdempotencyKey } from "@/lib/call-accounting";
 import { FREE_CALL_LIMIT } from "@/lib/limits";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { missingSupabaseEnv, supabaseIsConfigured } from "@/lib/supabase/env";
@@ -11,7 +12,7 @@ import { missingSupabaseEnv, supabaseIsConfigured } from "@/lib/supabase/env";
  *
  * TODO(stripe): a paid plan should be decided in that SQL function, not here.
  */
-export async function POST() {
+export async function POST(request: Request) {
   if (!supabaseIsConfigured()) {
     return Response.json(
       { error: "supabase_unconfigured", missing: missingSupabaseEnv() },
@@ -29,7 +30,11 @@ export async function POST() {
     return Response.json({ error: "unauthenticated" }, { status: 401 });
   }
 
-  const { data, error } = await supabase.rpc("start_practice_call");
+  const idempotencyKey = readIdempotencyKey(request.headers.get("idempotency-key"));
+  const { data, error } = await supabase.rpc("start_practice_call", {
+    p_channel: "web",
+    p_idempotency_key: idempotencyKey,
+  });
   if (error) {
     if (error.message.includes("free_call_limit") || error.code === "P0001") {
       return Response.json(

@@ -10,6 +10,7 @@ import { TranscriptLog } from "@/components/transcript-log";
 import { Button } from "@/components/ui/button";
 import { FreeCallWall } from "@/components/free-call-wall";
 import { briefIsReady } from "@/lib/brief";
+import { DEFAULT_BUYER_SETTINGS, type BuyerSettings } from "@/lib/buyer-settings";
 import { freeCallsLabel, remainingFreeCalls } from "@/lib/limits";
 import { getPersona } from "@/lib/personas";
 import {
@@ -41,6 +42,7 @@ export function CallRoom({
   pastTurns = [],
   accountBrief,
   savedPhone = "",
+  buyerSettings = DEFAULT_BUYER_SETTINGS,
 }: {
   source?: "local" | "account";
   email?: string;
@@ -50,6 +52,7 @@ export function CallRoom({
   pastTurns?: TranscriptTurn[];
   accountBrief?: PitchBrief;
   savedPhone?: string;
+  buyerSettings?: BuyerSettings;
 }) {
   const storedBrief = useSyncExternalStore(subscribeBrief, getBriefSnapshot, getBriefServerSnapshot);
   const brief = source === "account" && accountBrief ? accountBrief : storedBrief;
@@ -68,6 +71,7 @@ export function CallRoom({
     end,
   } = useVapiCall(brief, {
     persistence: source === "account" ? "server" : "local",
+    settings: buyerSettings,
     onAuthorized: (freeCallsUsed) => setUsed(freeCallsUsed),
     onLimit: () => {
       setUsed(callLimit);

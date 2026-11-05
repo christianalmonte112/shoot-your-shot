@@ -183,13 +183,29 @@ describe("phone numbers", () => {
 });
 
 describe("assistant overrides", () => {
-  it("uses the same variable values the web call sends", () => {
+  it("uses the same product variables the web call sends", () => {
     const brief = { ...EMPTY_BRIEF, productName: "Harbor", productSummary: "Watches deploys." };
     const overrides = assistantOverridesForBrief(brief);
     const direct = toVariableValues(brief);
-    assert.deepEqual(overrides.variableValues, direct);
+    for (const key of VARIABLE_KEYS) {
+      assert.equal(overrides.variableValues[key], direct[key]);
+    }
+    assert.match(overrides.variableValues.buyer_difficulty, /Standard/);
     assert.equal(overrides.maxDurationSeconds, 420);
     assert.match(overrides.firstMessage, /Harbor/);
+  });
+
+  it("forwards difficulty and practice questions without replacing the product", () => {
+    const brief = { ...EMPTY_BRIEF, productName: "Harbor", productSummary: "Watches deploys." };
+    const overrides = assistantOverridesForBrief(brief, {
+      personality: "friendly",
+      difficulty: "tough",
+      practiceQuestions: "Ask about the spreadsheet.",
+    });
+    assert.equal(overrides.variableValues.buyer_name, "Maya Chen");
+    assert.equal(overrides.variableValues.product_name, "Harbor");
+    assert.match(overrides.variableValues.buyer_difficulty, /Tough/);
+    assert.match(overrides.variableValues.practice_questions, /spreadsheet/);
   });
 });
 

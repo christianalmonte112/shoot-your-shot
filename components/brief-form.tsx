@@ -3,8 +3,17 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
+import { BuyerCustomize } from "@/components/buyer-customize";
 import { briefIsReady } from "@/lib/brief";
-import { PERSONA_LIST } from "@/lib/personas";
+import {
+  DEFAULT_BUYER_SETTINGS,
+  getBuyerSettingsServerSnapshot,
+  getBuyerSettingsSnapshot,
+  sanitizeBuyerSettings,
+  saveLocalBuyerSettings,
+  subscribeBuyerSettings,
+  type BuyerSettings,
+} from "@/lib/buyer-settings";
 import {
   getBriefServerSnapshot,
   getBriefSnapshot,
@@ -16,7 +25,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 
 const OBJECTION_LIMIT = 8;
 
@@ -28,10 +36,12 @@ type FieldErrors = {
 export function BriefForm({
   source = "local",
   initialBrief,
+  initialSettings,
 }: {
   /** "local" keeps the draft in this browser. "account" writes it to Supabase. */
   source?: "local" | "account";
   initialBrief?: PitchBrief;
+  initialSettings?: BuyerSettings;
 }) {
   const router = useRouter();
   // The local store's server snapshot is empty, so hydration matches.
@@ -41,6 +51,17 @@ export function BriefForm({
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
   const dirty = useRef(false);
   const brief = source === "account" ? accountBrief : stored;
+  const storedSettings = useSyncExternalStore(
+    subscribeBuyerSettings,
+    getBuyerSettingsSnapshot,
+    getBuyerSettingsServerSnapshot,
+  );
+  const [accountSettings, setAccountSettings] = useState<BuyerSettings>(
+    sanitizeBuyerSettings(
+      initialSettings ?? { ...DEFAULT_BUYER_SETTINGS, personality: (initialBrief ?? stored).persona },
+    ),
+  );
+  const settings = source === "account" ? accountSettings : storedSettings;
   const [draft, setDraft] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({
     productName: false,
@@ -295,35 +316,23 @@ export function BriefForm({
         </div>
       </fieldset>
 
-      <fieldset className="grid gap-3">
-        <legend className="text-sm font-medium">Buyer persona</legend>
-        <div role="radiogroup" aria-label="Buyer persona" className="grid gap-3 sm:grid-cols-3">
-          {PERSONA_LIST.map((persona) => {
-            const selected = brief.persona === persona.id;
-            return (
-              <button
-                key={persona.id}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => update({ persona: persona.id })}
-                className={cn(
-                  "rounded-xl p-4 text-left ring-1 transition-colors",
-                  selected
-                    ? "bg-primary/10 ring-primary"
-                    : "bg-card ring-foreground/10 hover:ring-foreground/25",
-                )}
-              >
-                <span className="block text-sm font-medium">{persona.label}</span>
-                <span className="mt-1 block text-sm text-muted-foreground">{persona.blurb}</span>
-                <span className="mt-3 block text-xs text-muted-foreground">
-                  {persona.buyerName}, {persona.buyerRole}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
+      <BuyerCustomize
+        settings={settings}
+        onChange={(next) => {
+          const clean = sanitizeBuyerSettings(next);
+          update({ persona: clean.personality });
+          if (source === "account") {
+            setAccountSettings(clean);
+            void fetch("/api/buyer-settings", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(clean),
+            });
+          } else {
+            saveLocalBuyerSettings(clean);
+          }
+        }}
+      />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <Button type="submit" className="h-12 rounded-full px-6 text-base">

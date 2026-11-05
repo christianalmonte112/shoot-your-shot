@@ -1,10 +1,14 @@
 import { assistantOverridesForBrief } from "@/lib/assistant-overrides";
 import { briefIsReady, sanitizeBrief } from "@/lib/brief";
+import { sanitizeBuyerSettings } from "@/lib/buyer-settings";
+import { readIdempotencyKey } from "@/lib/call-accounting";
 import { FREE_CALL_LIMIT } from "@/lib/limits";
+import { evaluateOutbound, readOutboundConfig } from "@/lib/outbound-policy";
 import { normalizePhone } from "@/lib/phone";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { missingSupabaseEnv, supabaseIsConfigured } from "@/lib/supabase/env";
-import { outboundVapiEnv, publicVapiError } from "@/lib/vapi-server";
+import { publicVapiError } from "@/lib/vapi-error";
+import { outboundVapiEnv } from "@/lib/vapi-server";
 
 /**
  * Place an outbound practice call to the signed-in user's phone.
@@ -51,9 +55,21 @@ export async function POST(request: Request) {
     return Response.json({ error: "missing_phone" }, { status: 400 });
   }
 
+  const outbound = evaluateOutbound({
+    ...readOutboundConfig({
+      enabled: process.env.OUTBOUND_CALLS_ENABLED,
+      allowlist: process.env.OUTBOUND_ALLOWED_NUMBERS,
+    }),
+    requestedPhone: phone,
+  });
+  if (!outbound.ok) {
+    const status = outbound.code === "missing_phone" ? 400 : 403;
+    return Response.json({ error: outbound.code }, { status });
+  }
+
   const { error: profileError } = await supabase.from("profiles").upsert({
     user_id: user.id,
-    phone,
+    phone: outbound.number,
     updated_at: new Date().toISOString(),
   });
   if (profileError) {
@@ -91,7 +107,29 @@ export async function POST(request: Request) {
     return Response.json({ error: "brief_incomplete" }, { status: 400 });
   }
 
-  const { data, error } = await supabase.rpc("start_practice_call");
+  const { data: settingsRow, error: settingsError } = await supabase
+    .from("buyer_settings")
+    .select("personality, difficulty, practice_questions")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (settingsError) {
+    return Response.json({ error: "settings_unreadable" }, { status: 500 });
+  }
+  const settings = sanitizeBuyerSettings(
+    settingsRow
+      ? {
+          personality: settingsRow.personality,
+          difficulty: settingsRow.difficulty,
+          practiceQuestions: settingsRow.practice_questions,
+        }
+      : { personality: brief.persona },
+  );
+
+  const idempotencyKey = readIdempotencyKey(request.headers.get("idempotency-key"));
+  const { data, error } = await supabase.rpc("start_practice_call", {
+    p_channel: "phone",
+    p_idempotency_key: idempotencyKey,
+  });
   if (error) {
     if (error.message.includes("free_call_limit") || error.code === "P0001") {
       return Response.json(
@@ -112,7 +150,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "start_failed" }, { status: 500 });
   }
 
-  const overrides = assistantOverridesForBrief(brief);
+  const overrides = assistantOverridesForBrief(brief, settings);
   let vapiResponse: Response;
   try {
     vapiResponse = await fetch("https://api.vapi.ai/call", {
@@ -124,7 +162,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         assistantId: vapi.assistantId,
         phoneNumberId: vapi.phoneNumberId,
-        customer: { number: phone },
+        customer: { number: outbound.number },
         assistantOverrides: {
           variableValues: overrides.variableValues,
           firstMessage: overrides.firstMessage,
@@ -163,7 +201,7 @@ export async function POST(request: Request) {
     callId,
     vapiCallId,
     freeCallsUsed: started?.free_calls_used ?? 0,
-    phone,
+    phone: outbound.number,
   });
 }
 

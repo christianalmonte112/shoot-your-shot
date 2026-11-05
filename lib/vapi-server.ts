@@ -25,12 +25,3 @@ export function outboundVapiEnv(): {
     missing,
   };
 }
-
-/** A short message for the builder. Never the raw response, which can be huge. */
-export function publicVapiError(body: unknown): string {
-  if (!body || typeof body !== "object") return "Vapi could not place the call.";
-  const record = body as Record<string, unknown>;
-  const message = typeof record.message === "string" ? record.message.trim() : "";
-  if (!message) return "Vapi could not place the call.";
-  return message.slice(0, 280);
-}

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { sanitizeBrief } from "@/lib/brief";
+import { DEFAULT_BUYER_SETTINGS, sanitizeBuyerSettings, type BuyerSettings } from "@/lib/buyer-settings";
 import type { CoachingNotes } from "@/lib/coaching";
 import { FREE_CALL_LIMIT } from "@/lib/limits";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -19,6 +20,7 @@ export type AccountSnapshot = {
   callLimit: number;
   onWaitlist: boolean;
   phone: string | null;
+  buyerSettings: BuyerSettings;
   calls: PracticeCallRecord[];
 };
 
@@ -63,7 +65,8 @@ export async function loadAccount(): Promise<AccountSnapshot | { error: string }
   const user = data.user;
   if (!user) return null;
 
-  const [briefResult, usageResult, callsResult, waitlistResult, profileResult] = await Promise.all([
+  const [briefResult, usageResult, callsResult, waitlistResult, profileResult, settingsResult] =
+    await Promise.all([
     supabase
       .from("briefs")
       .select(
@@ -81,6 +84,11 @@ export async function loadAccount(): Promise<AccountSnapshot | { error: string }
       .order("started_at", { ascending: false }),
     supabase.from("waitlist").select("user_id").eq("user_id", user.id).maybeSingle(),
     supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle(),
+    supabase
+      .from("buyer_settings")
+      .select("personality, difficulty, practice_questions")
+      .eq("user_id", user.id)
+      .maybeSingle(),
   ]);
 
   const queryError = [
@@ -89,6 +97,7 @@ export async function loadAccount(): Promise<AccountSnapshot | { error: string }
     callsResult.error,
     waitlistResult.error,
     profileResult.error,
+    settingsResult.error,
   ].find((item) => item);
   if (queryError) return { error: queryError.message };
 
@@ -122,6 +131,13 @@ export async function loadAccount(): Promise<AccountSnapshot | { error: string }
     callLimit: FREE_CALL_LIMIT,
     onWaitlist: Boolean(waitlistResult.data),
     phone: profileResult.data?.phone ?? null,
+    buyerSettings: settingsResult.data
+      ? sanitizeBuyerSettings({
+          personality: settingsResult.data.personality,
+          difficulty: settingsResult.data.difficulty,
+          practiceQuestions: settingsResult.data.practice_questions,
+        })
+      : { ...DEFAULT_BUYER_SETTINGS, personality: brief.persona },
     calls,
   };
 }
